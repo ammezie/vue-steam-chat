@@ -8,7 +8,9 @@
     "lint": "vue-cli-service lint"
   },
   "dependencies": {
+    "axios": "^0.18.0",
     "core-js": "^2.6.5",
+    "stream-chat": "^0.13.2",
     "vue": "^2.6.10"
   },
   "devDependencies": {

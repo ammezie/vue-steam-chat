@@ -1,28 +1,137 @@
 <template>
-  <div id="app">
-    <img alt="Vue logo" src="./assets/logo.png">
-    <HelloWorld msg="Welcome to Your Vue.js App"/>
-  </div>
+  <section class="uk-section">
+    <div class="uk-container uk-container-small">
+      <div class="uk-flex uk-flex-center">
+        <div class="uk-width-large uk-margin-large-top">
+          <template v-if="hasJoinedChat">
+            <h2 class="uk-text-center">Chats</h2>
+
+            <div class="uk-panel uk-panel-scrollable">
+              <ul class="uk-list uk-list-divider">
+                <li v-for="message in messages" :key="message.id">
+                  <div
+                    :class="{ 'uk-text-right': message.user.id === user.username }"
+                  >{{ message.text }}</div>
+                </li>
+              </ul>
+            </div>
+
+            <form @submit.prevent="sendMessage" method="post">
+              <div class="uk-flex uk-margin-small-top">
+                <div class="uk-width-expand">
+                  <input
+                    class="uk-input"
+                    type="text"
+                    v-model="newMessage"
+                    placeholder="Start chatting..."
+                  >
+                </div>
+                <div class="uk-width-auto">
+                  <button class="uk-button uk-button-primary">Send</button>
+                </div>
+              </div>
+            </form>
+          </template>
+
+          <template v-else>
+            <h2 class="uk-text-center">Join Chat!</h2>
+
+            <form @submit.prevent="joinChat" method="post" class="uk-form-stacked">
+              <div class="uk-margin-small-top uk-width-1-1@s">
+                <label class="uk-form-label">username</label>
+                <div class="uk-form-controls">
+                  <input class="uk-input" type="text" v-model="username" required>
+                </div>
+              </div>
+
+              <div class="uk-margin-top uk-width-1-1@s">
+                <button
+                  type="submit"
+                  class="uk-button uk-button-primary uk-width-1-1 uk-border-rounded uk-text-uppercase tracking-wide"
+                >Join Chat</button>
+              </div>
+            </form>
+          </template>
+        </div>
+      </div>
+    </div>
+  </section>
 </template>
 
 <script>
-import HelloWorld from './components/HelloWorld.vue'
+import axios from "axios";
+import { StreamChat } from "stream-chat";
 
 export default {
-  name: 'app',
-  components: {
-    HelloWorld
-  }
-}
-</script>
+  name: "app",
+  data() {
+    return {
+      hasJoinedChat: !!localStorage.getItem("stream-chat-token"),
+      username: "",
+      user: JSON.parse(localStorage.getItem("stream-chat-user")),
+      channel: "",
+      client: "",
+      messages: [],
+      newMessage: ""
+    };
+  },
+  async created() {
+    if (this.hasJoinedChat) {
+      await this.initializeStream();
+      await this.initializeChannel();
 
-<style>
-#app {
-  font-family: 'Avenir', Helvetica, Arial, sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  text-align: center;
-  color: #2c3e50;
-  margin-top: 60px;
-}
-</style>
+      this.channel.on("message.new", event => {
+        this.messages.push({
+          text: event.message.text,
+          user: event.message.user
+        });
+      });
+    }
+  },
+  methods: {
+    async joinChat() {
+      const { data } = await axios.post(
+        `${process.env.VUE_APP_SERVER_API_ENDPOINT}/join`,
+        {
+          username: this.username
+        }
+      );
+
+      localStorage.setItem("stream-chat-user", JSON.stringify(data.user));
+      localStorage.setItem("stream-chat-token", data.token);
+
+      this.username = "";
+
+      this.hasJoinedChat = true;
+      this.user = data.user;
+
+      await this.initializeStream();
+      await this.initializeChannel();
+    },
+    async initializeStream() {
+      const { username } = this.user;
+
+      this.client = new StreamChat(process.env.VUE_APP_API_KEY);
+
+      await this.client.setUser(
+        { id: username, name: username },
+        localStorage.getItem("stream-chat-token")
+      );
+    },
+    async initializeChannel() {
+      this.channel = this.client.channel("messaging", "vue-chat", {
+        name: "Vue Chat"
+      });
+
+      this.messages = (await this.channel.watch()).messages;
+    },
+    async sendMessage() {
+      await this.channel.sendMessage({
+        text: this.newMessage
+      });
+
+      this.newMessage = "";
+    }
+  }
+};
+</script>
