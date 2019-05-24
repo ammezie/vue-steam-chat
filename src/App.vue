@@ -66,27 +66,15 @@ export default {
   name: "app",
   data() {
     return {
-      hasJoinedChat: !!localStorage.getItem("stream-chat-token"),
+      hasJoinedChat: false,
       username: "",
-      user: JSON.parse(localStorage.getItem("stream-chat-user")),
+      token: "",
+      user: "",
       channel: "",
       client: "",
       messages: [],
       newMessage: ""
     };
-  },
-  async created() {
-    if (this.hasJoinedChat) {
-      await this.initializeStream();
-      await this.initializeChannel();
-
-      this.channel.on("message.new", event => {
-        this.messages.push({
-          text: event.message.text,
-          user: event.message.user
-        });
-      });
-    }
   },
   methods: {
     async joinChat() {
@@ -97,29 +85,32 @@ export default {
         }
       );
 
-      localStorage.setItem("stream-chat-user", JSON.stringify(data.user));
-      localStorage.setItem("stream-chat-token", data.token);
-
       this.username = "";
 
       this.hasJoinedChat = true;
       this.user = data.user;
+      this.token = data.token;
 
       await this.initializeStream();
       await this.initializeChannel();
+
+      // listen for new messages
+      this.channel.on("message.new", event => {
+        this.messages.push({
+          text: event.message.text,
+          user: event.message.user
+        });
+      });
     },
     async initializeStream() {
       const { username } = this.user;
 
       this.client = new StreamChat(process.env.VUE_APP_API_KEY);
 
-      await this.client.setUser(
-        { id: username, name: username },
-        localStorage.getItem("stream-chat-token")
-      );
+      await this.client.setUser({ id: username, name: username }, this.token);
     },
     async initializeChannel() {
-      this.channel = this.client.channel("messaging", "vue-chat", {
+      this.channel = this.client.channel("messaging", "vue-chatee", {
         name: "Vue Chat"
       });
 
